@@ -38,11 +38,12 @@ message CreateUserRequest {
 }
 
 service PostsAPI {
-  rpc GetPosts(google.protobuf.Empty) returns (ListOfPosts) {}
   rpc CreatePost(CreatePostRequest) returns (Post) {}
+  rpc GetPosts(google.protobuf.Empty) returns (ListOfPosts) {}
+  rpc Subscribe(google.protobuf.Empty) returns (stream Post) {}
 }
 
 service UsersAPI {
-  rpc GetUsers(google.protobuf.Empty) returns (ListOfUsers) {}
   rpc CreateUser(CreateUserRequest) returns (User) {}
+  rpc GetUsers(google.protobuf.Empty) returns (ListOfUsers) {}
 }

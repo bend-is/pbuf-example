@@ -6,9 +6,12 @@ import (
 	pb "github.com/bend-is/pbuf-example/proto"
 	"github.com/golang/protobuf/ptypes/empty"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"sync"
 )
 
 type PostAPIServer struct {
+	mu          sync.Mutex
+	subscribers []chan *pb.Post
 	pb.UnimplementedPostsAPIServer
 }
 
@@ -24,6 +27,24 @@ func (p *PostAPIServer) GetPosts(ctx context.Context, emp *empty.Empty) (*pb.Lis
 	copy(posts.Posts, serverState.Posts)
 
 	return posts, nil
+}
+
+func (p *PostAPIServer) Subscribe(emp *empty.Empty, stream pb.PostsAPI_SubscribeServer) error {
+	ch := make(chan *pb.Post)
+	defer p.unsubscribe(ch)
+
+	p.mu.Lock()
+	p.subscribers = append(p.subscribers, ch)
+	p.mu.Unlock()
+
+	for {
+		select {
+		case post := <-ch:
+			if err := stream.Send(post); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func (p *PostAPIServer) CreatePost(ctx context.Context, req *pb.CreatePostRequest) (*pb.Post, error) {
@@ -55,5 +76,25 @@ func (p *PostAPIServer) CreatePost(ctx context.Context, req *pb.CreatePostReques
 	}
 	serverState.Posts = append(serverState.Posts, newPost)
 
+	p.mu.Lock()
+	for _, ch := range p.subscribers {
+		go func(ch chan *pb.Post) { ch <- newPost }(ch)
+	}
+	p.mu.Unlock()
+
 	return newPost, nil
+}
+
+func (p *PostAPIServer) unsubscribe(ch chan *pb.Post) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for i, v := range p.subscribers {
+		if v == ch {
+			p.subscribers = append(p.subscribers[:i], p.subscribers[i+1:]...)
+			break
+		}
+	}
+
+	close(ch)
 }

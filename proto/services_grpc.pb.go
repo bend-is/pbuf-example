@@ -19,8 +19,9 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type PostsAPIClient interface {
-	GetPosts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ListOfPosts, error)
 	CreatePost(ctx context.Context, in *CreatePostRequest, opts ...grpc.CallOption) (*Post, error)
+	GetPosts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ListOfPosts, error)
+	Subscribe(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (PostsAPI_SubscribeClient, error)
 }
 
 type postsAPIClient struct {
@@ -29,15 +30,6 @@ type postsAPIClient struct {
 
 func NewPostsAPIClient(cc grpc.ClientConnInterface) PostsAPIClient {
 	return &postsAPIClient{cc}
-}
-
-func (c *postsAPIClient) GetPosts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ListOfPosts, error) {
-	out := new(ListOfPosts)
-	err := c.cc.Invoke(ctx, "/services.PostsAPI/GetPosts", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *postsAPIClient) CreatePost(ctx context.Context, in *CreatePostRequest, opts ...grpc.CallOption) (*Post, error) {
@@ -49,12 +41,54 @@ func (c *postsAPIClient) CreatePost(ctx context.Context, in *CreatePostRequest, 
 	return out, nil
 }
 
+func (c *postsAPIClient) GetPosts(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ListOfPosts, error) {
+	out := new(ListOfPosts)
+	err := c.cc.Invoke(ctx, "/services.PostsAPI/GetPosts", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *postsAPIClient) Subscribe(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (PostsAPI_SubscribeClient, error) {
+	stream, err := c.cc.NewStream(ctx, &PostsAPI_ServiceDesc.Streams[0], "/services.PostsAPI/Subscribe", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &postsAPISubscribeClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type PostsAPI_SubscribeClient interface {
+	Recv() (*Post, error)
+	grpc.ClientStream
+}
+
+type postsAPISubscribeClient struct {
+	grpc.ClientStream
+}
+
+func (x *postsAPISubscribeClient) Recv() (*Post, error) {
+	m := new(Post)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // PostsAPIServer is the server API for PostsAPI service.
 // All implementations must embed UnimplementedPostsAPIServer
 // for forward compatibility
 type PostsAPIServer interface {
-	GetPosts(context.Context, *empty.Empty) (*ListOfPosts, error)
 	CreatePost(context.Context, *CreatePostRequest) (*Post, error)
+	GetPosts(context.Context, *empty.Empty) (*ListOfPosts, error)
+	Subscribe(*empty.Empty, PostsAPI_SubscribeServer) error
 	mustEmbedUnimplementedPostsAPIServer()
 }
 
@@ -62,11 +96,14 @@ type PostsAPIServer interface {
 type UnimplementedPostsAPIServer struct {
 }
 
+func (UnimplementedPostsAPIServer) CreatePost(context.Context, *CreatePostRequest) (*Post, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreatePost not implemented")
+}
 func (UnimplementedPostsAPIServer) GetPosts(context.Context, *empty.Empty) (*ListOfPosts, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPosts not implemented")
 }
-func (UnimplementedPostsAPIServer) CreatePost(context.Context, *CreatePostRequest) (*Post, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreatePost not implemented")
+func (UnimplementedPostsAPIServer) Subscribe(*empty.Empty, PostsAPI_SubscribeServer) error {
+	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
 }
 func (UnimplementedPostsAPIServer) mustEmbedUnimplementedPostsAPIServer() {}
 
@@ -79,24 +116,6 @@ type UnsafePostsAPIServer interface {
 
 func RegisterPostsAPIServer(s grpc.ServiceRegistrar, srv PostsAPIServer) {
 	s.RegisterService(&PostsAPI_ServiceDesc, srv)
-}
-
-func _PostsAPI_GetPosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PostsAPIServer).GetPosts(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/services.PostsAPI/GetPosts",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PostsAPIServer).GetPosts(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _PostsAPI_CreatePost_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -117,6 +136,45 @@ func _PostsAPI_CreatePost_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PostsAPI_GetPosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PostsAPIServer).GetPosts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/services.PostsAPI/GetPosts",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PostsAPIServer).GetPosts(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PostsAPI_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(empty.Empty)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(PostsAPIServer).Subscribe(m, &postsAPISubscribeServer{stream})
+}
+
+type PostsAPI_SubscribeServer interface {
+	Send(*Post) error
+	grpc.ServerStream
+}
+
+type postsAPISubscribeServer struct {
+	grpc.ServerStream
+}
+
+func (x *postsAPISubscribeServer) Send(m *Post) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // PostsAPI_ServiceDesc is the grpc.ServiceDesc for PostsAPI service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -125,15 +183,21 @@ var PostsAPI_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*PostsAPIServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetPosts",
-			Handler:    _PostsAPI_GetPosts_Handler,
-		},
-		{
 			MethodName: "CreatePost",
 			Handler:    _PostsAPI_CreatePost_Handler,
 		},
+		{
+			MethodName: "GetPosts",
+			Handler:    _PostsAPI_GetPosts_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Subscribe",
+			Handler:       _PostsAPI_Subscribe_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "proto/services.proto",
 }
 
@@ -141,8 +205,8 @@ var PostsAPI_ServiceDesc = grpc.ServiceDesc{
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type UsersAPIClient interface {
-	GetUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ListOfUsers, error)
 	CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*User, error)
+	GetUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ListOfUsers, error)
 }
 
 type usersAPIClient struct {
@@ -151,15 +215,6 @@ type usersAPIClient struct {
 
 func NewUsersAPIClient(cc grpc.ClientConnInterface) UsersAPIClient {
 	return &usersAPIClient{cc}
-}
-
-func (c *usersAPIClient) GetUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ListOfUsers, error) {
-	out := new(ListOfUsers)
-	err := c.cc.Invoke(ctx, "/services.UsersAPI/GetUsers", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *usersAPIClient) CreateUser(ctx context.Context, in *CreateUserRequest, opts ...grpc.CallOption) (*User, error) {
@@ -171,12 +226,21 @@ func (c *usersAPIClient) CreateUser(ctx context.Context, in *CreateUserRequest, 
 	return out, nil
 }
 
+func (c *usersAPIClient) GetUsers(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ListOfUsers, error) {
+	out := new(ListOfUsers)
+	err := c.cc.Invoke(ctx, "/services.UsersAPI/GetUsers", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UsersAPIServer is the server API for UsersAPI service.
 // All implementations must embed UnimplementedUsersAPIServer
 // for forward compatibility
 type UsersAPIServer interface {
-	GetUsers(context.Context, *empty.Empty) (*ListOfUsers, error)
 	CreateUser(context.Context, *CreateUserRequest) (*User, error)
+	GetUsers(context.Context, *empty.Empty) (*ListOfUsers, error)
 	mustEmbedUnimplementedUsersAPIServer()
 }
 
@@ -184,11 +248,11 @@ type UsersAPIServer interface {
 type UnimplementedUsersAPIServer struct {
 }
 
-func (UnimplementedUsersAPIServer) GetUsers(context.Context, *empty.Empty) (*ListOfUsers, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
-}
 func (UnimplementedUsersAPIServer) CreateUser(context.Context, *CreateUserRequest) (*User, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateUser not implemented")
+}
+func (UnimplementedUsersAPIServer) GetUsers(context.Context, *empty.Empty) (*ListOfUsers, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUsers not implemented")
 }
 func (UnimplementedUsersAPIServer) mustEmbedUnimplementedUsersAPIServer() {}
 
@@ -201,24 +265,6 @@ type UnsafeUsersAPIServer interface {
 
 func RegisterUsersAPIServer(s grpc.ServiceRegistrar, srv UsersAPIServer) {
 	s.RegisterService(&UsersAPI_ServiceDesc, srv)
-}
-
-func _UsersAPI_GetUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(empty.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(UsersAPIServer).GetUsers(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/services.UsersAPI/GetUsers",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(UsersAPIServer).GetUsers(ctx, req.(*empty.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _UsersAPI_CreateUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -239,6 +285,24 @@ func _UsersAPI_CreateUser_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UsersAPI_GetUsers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UsersAPIServer).GetUsers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/services.UsersAPI/GetUsers",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UsersAPIServer).GetUsers(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UsersAPI_ServiceDesc is the grpc.ServiceDesc for UsersAPI service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -247,12 +311,12 @@ var UsersAPI_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*UsersAPIServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetUsers",
-			Handler:    _UsersAPI_GetUsers_Handler,
-		},
-		{
 			MethodName: "CreateUser",
 			Handler:    _UsersAPI_CreateUser_Handler,
+		},
+		{
+			MethodName: "GetUsers",
+			Handler:    _UsersAPI_GetUsers_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
