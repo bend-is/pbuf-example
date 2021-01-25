@@ -6,5 +6,5 @@ build-docker:
 .PHONE: pbuf-gen
 
 BUFDIR = "/tmp/buf-generate"
-pbuf: build-docker
+gen: build-docker
 	 docker run --rm -v $(PWD):/app builder /build.sh

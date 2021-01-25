@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+package services;
+option go_package = "github.com/bend-is/pbuf-example/proto";
+
+message Post {
+  string id = 1;
+  string replayId = 2;
+  string text = 3;
+  string userId = 4;
+  google.protobuf.Timestamp publishedAt = 5;
+}
+
+message CreatePostRequest {
+  string replayId = 1;
+  string text = 2;
+  string userId = 3;
+}
+
+message ListOfPosts {
+  repeated Post posts = 1;
+}
+
+message User {
+  string id = 1;
+  string login = 2;
+}
+
+message ListOfUsers {
+  repeated User users = 1;
+}
+
+message CreateUserRequest {
+  string login = 1;
+}
+
+service PostsAPI {
+  rpc GetPosts(google.protobuf.Empty) returns (ListOfPosts) {}
+  rpc CreatePost(CreatePostRequest) returns (Post) {}
+}
+
+service UsersAPI {
+  rpc GetUsers(google.protobuf.Empty) returns (ListOfUsers) {}
+  rpc CreateUser(CreateUserRequest) returns (User) {}
+}

@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+import "proto/services.proto";
+
+package state;
+option go_package = "github.com/bend-is/pbuf-example/proto";
+
+message State{
+  repeated services.Post posts = 1;
+  repeated services.User users = 2;
+}

@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-package messages;
-option go_package = "github.com/korjavin/pbuf-example/messages;messages";
-
-message Text{
-  string text     = 1;
-  int64 publishAt = 2;
-}
